@@ -7,6 +7,7 @@
 
 import torch
 import torch.nn as nn
+from monai.inferers import sliding_window_inference
 
 
 # -----------------------------------------------------------------------------
@@ -470,3 +471,37 @@ def load_model(pretrained_ckpt="anatomix.pth", device="cuda"):
         model.load_state_dict(torch.load(pretrained_ckpt))
     
     return model
+
+def minmax(arr, minclip=None, maxclip=None):
+    if not (minclip is None) & (maxclip is None):
+        arr = np.clip(arr, minclip, maxclip)
+        
+    arr = (arr - arr.min()) / (arr.max() - arr.min())
+    return arr
+
+
+def extract_features(
+    img_fixed,
+    model,
+    fixminclip=None,
+    fixmaxclip=None,
+    movminclip=None,
+    movmaxclip=None,
+):
+    imfixed = minmax(img_fixed, fixminclip, fixmaxclip)
+    imfixed.requires_grad = False
+
+    
+    with torch.no_grad():
+        opfixed = sliding_window_inference(
+            imfixed,
+            (128, 128, 128),
+            2,
+            model,
+            overlap=0.8,
+            mode="gaussian",
+            sigma_scale=0.25,
+        )
+      
+    
+    return opfixed
